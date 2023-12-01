@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/tar"
+	"compress/gzip"
 	"context"
 	"crypto/sha1"
 	"crypto/sha256"
@@ -39,9 +40,16 @@ func main() {
 		log.Fatal(err)
 	}
 	defer closeAndIgnoreError(fileTo)
-
-	readerFrom := tar.NewReader(fileFrom)
-	readerTo := tar.NewReader(fileTo)
+	gzipReaderFrom, err := gzip.NewReader(fileFrom)
+	if err != nil {
+		log.Fatal(err)
+	}
+	gzipReaderTo, err := gzip.NewReader(fileTo)
+	if err != nil {
+		log.Fatal(err)
+	}
+	readerFrom := tar.NewReader(gzipReaderFrom)
+	readerTo := tar.NewReader(gzipReaderTo)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
