@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/signal"
 	"slices"
+	"strings"
 )
 
 func main() {
@@ -39,17 +40,22 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	var readFrom, readTo io.Reader = fileFrom, fileTo
 	defer closeAndIgnoreError(fileTo)
-	gzipReaderFrom, err := gzip.NewReader(fileFrom)
-	if err != nil {
-		log.Fatal(err)
+	if isGzipped(fileNameFrom) {
+		readFrom, err = gzip.NewReader(readFrom)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
-	gzipReaderTo, err := gzip.NewReader(fileTo)
-	if err != nil {
-		log.Fatal(err)
+	if isGzipped(fileNameTo) {
+		readTo, err = gzip.NewReader(readTo)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
-	readerFrom := tar.NewReader(gzipReaderFrom)
-	readerTo := tar.NewReader(gzipReaderTo)
+	readerFrom := tar.NewReader(readFrom)
+	readerTo := tar.NewReader(readTo)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
@@ -97,12 +103,12 @@ func main() {
 		log.Println("file:", name)
 		from, ok := cacheFrom[name]
 		if !ok {
-			log.Println("\tfile missing in to tarball:", name)
+			log.Println("\tfile missing in 'to' tarball:", name)
 			continue
 		}
 		to, ok := cacheTo[name]
 		if !ok {
-			log.Println("\tfile missing from:", name)
+			log.Println("\tfile missing in from tarball:", name)
 			continue
 		}
 		isSame = isSame && diffFiles(allHeaderFields, to, from)
@@ -181,6 +187,11 @@ func diffFiles(allHeaderFields bool, fileTo, fileFrom *File) bool {
 	isSame = isSame && check("file sha256sum mismatch", fileFrom.SHA256Sum, fileTo.SHA256Sum)
 	isSame = isSame && check("file sha1sum mismatch", fileFrom.Sha1Sum, fileTo.Sha1Sum)
 	return isSame
+}
+
+func isGzipped(fileName string) bool {
+	return strings.HasSuffix(fileName, ".gz") ||
+		strings.HasSuffix(fileName, ".tgz")
 }
 
 func check[T comparable](field string, to, from T) bool {
